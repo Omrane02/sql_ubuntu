@@ -320,4 +320,4 @@ La fonction d'audit est `SECURITY DEFINER` (personne n'a le droit d'écrire dans
 
 ## 12. Captures
  
-Toutes dans [`captures/`](captures sql/).
+Toutes dans [`captures sql/`](captures/).
