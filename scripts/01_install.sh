@@ -38,8 +38,34 @@ log_statement        = 'ddl'
 EOF
 chown postgres:postgres "${CONF_DIR}/conf.d/novabank.conf"
 
-#restart
-log "Redemarrage de PostgreSQL"
+#pg_hba.conf : qui peut se connecter
+HBA="${CONF_DIR}/pg_hba.conf"
+if [[ ! -f "${HBA}.orig" ]]; then
+    log "Sauvegarde du pg_hba.conf d'origine"
+    cp "${HBA}" "${HBA}.orig"
+fi
+
+log "Écriture des règles de connexion dans ${HBA}"
+cat > "${HBA}" <<'EOF'
+# TYPE  DATABASE  USER                               ADDRESS           METHOD
+# (1) administrateur local, par le socket, identifié par son compte Linux
+local   all       postgres                                             peer
+# (2) propriétaire + application : depuis la VM seulement
+local   bankdb    bank_owner,app_user                                  scram-sha-256
+host    bankdb    bank_owner,app_user                127.0.0.1/32      scram-sha-256
+host    bankdb    bank_owner,app_user                ::1/128           scram-sha-256
+# (3) analystes, support, auditeurs : depuis le réseau d'administration
+host    bankdb    +g_analyst,+g_support,+g_auditor   192.168.56.0/24   scram-sha-256
+# (4) tout le reste est refusé
+local   all       all                                                  reject
+host    all       all                                0.0.0.0/0         reject
+host    all       all                                ::/0              reject
+EOF
+chown postgres:postgres "${HBA}"
+chmod 640 "${HBA}"
+
+# listen_addresses a le contexte "postmaster" : il faut un restart
+log "Redémarrage de PostgreSQL"
 systemctl restart postgresql
 
 #parefeu
