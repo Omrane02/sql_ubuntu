@@ -1,0 +1,9 @@
+.pgpass
+*.env
+*.key
+*.pem
+*.dump
+*.backup
+*.csv
+venv/
+__pycache__/
