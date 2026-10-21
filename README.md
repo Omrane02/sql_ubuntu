@@ -321,3 +321,12 @@ La fonction d'audit est `SECURITY DEFINER` (personne n'a le droit d'écrire dans
 ## 12. Captures
  
 Toutes dans [`captures sql/`](captures%20sql/).
+
+## 13. Utilisation d'une IA
+ 
+J'ai utilisé Claude pour: 
+ 
+- m'expliquer la configuration réseau de la VM (netplan, IP fixe, carte host-only), la mise en place des clés SSH depuis Windows et la liaison Git / GitHub ;
+- m'expliquer chaque notion utilisée : `pg_hba.conf`, CHECK ou trigger, fonctions de fenêtre, les trois portes des droits, `security_barrier`, `CHECK OPTION`, lecture des plans `EXPLAIN`, types d'index, `FOR UPDATE` et interblocages, `SECURITY DEFINER` et `search_path`, `session_user` / `current_user` ;
+- m'aider à comprendre et corriger les erreurs rencontrées (shebang manquant lancé par `dash`, `ANALYZE` sur les tables système, ordre des lignes sans `ORDER BY` dans le script de sauvegarde, `TRUNCATE` bloqué par la clé étrangère avant le trigger).
+- m'aider à la rédaction de ce Readme
