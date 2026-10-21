@@ -1,0 +1,222 @@
+BEGIN
+
+################ E2 : CONTRAINTES ################
+[DOIT REUSSIR] client valide
+INSERT 0 1
+[DOIT ECHOUER] email invalide
+ERROR:  new row for relation "customers" violates check constraint "ck_customers_email"
+DETAIL:  Failing row contains (50006, Test, Ko, pas-un-email, null, 1990-05-01, PENDING, LOW, 2026-10-21 15:05:55.253044+00).
+[DOIT ECHOUER] email deja utilise
+ERROR:  duplicate key value violates unique constraint "uq_customers_email"
+DETAIL:  Key (email)=(client1@novabank.fr) already exists.
+[DOIT ECHOUER] solde negatif
+ERROR:  new row for relation "accounts" violates check constraint "ck_accounts_balance"
+DETAIL:  Failing row contains (1, 1, FR7600000000000000000000001, SAVINGS, -1.00, ACTIVE, 2024-03-01 14:27:25.647695+00).
+[DOIT ECHOUER] IBAN deja utilise
+ERROR:  duplicate key value violates unique constraint "uq_accounts_iban"
+DETAIL:  Key (iban)=(FR7600000000000000000000001) already exists.
+[DOIT ECHOUER] virement vers le meme compte
+ERROR:  new row for relation "transfers" violates check constraint "ck_transfers_accounts"
+DETAIL:  Failing row contains (200008, 1, 1, 10.00, null, 2026-10-21 15:05:55.253044+00).
+[DOIT ECHOUER] virement de montant negatif
+ERROR:  new row for relation "transfers" violates check constraint "ck_transfers_amount"
+DETAIL:  Failing row contains (200009, 1, 2, -10.00, null, 2026-10-21 15:05:55.253044+00).
+
+################ E3 : DROITS ################
+SET
+[DOIT REUSSIR] support lit les comptes
+ count  
+--------
+ 100000
+(1 row)
+
+[DOIT ECHOUER] support lit les emails
+ERROR:  permission denied for table customers
+RESET
+SET
+[DOIT REUSSIR] analyste lit les ecritures
+  count  
+---------
+ 1000000
+(1 row)
+
+[DOIT ECHOUER] analyste modifie un solde
+ERROR:  permission denied for table accounts
+[DOIT ECHOUER] analyste lit le journal d audit
+ERROR:  permission denied for schema audit
+LINE 1: SELECT count(*) FROM audit.audit_log;
+                             ^
+RESET
+SET
+[DOIT REUSSIR] auditeur lit le journal d audit
+ count 
+-------
+     1
+(1 row)
+
+[DOIT ECHOUER] auditeur supprime les alertes
+ERROR:  permission denied for table fraud_alerts
+RESET
+SET
+[DOIT ECHOUER] application lit une table directement
+ERROR:  permission denied for table accounts
+RESET
+
+################ E4 : VUES ################
+SET
+[DOIT REUSSIR] support lit les clients masques
+ customer_id | first_name | last_name |      email       |     phone      
+-------------+------------+-----------+------------------+----------------
+           1 | Hugo       | M.        | c***@novabank.fr | ** ** ** ** 01
+           2 | Emma       | M.        | c***@novabank.fr | ** ** ** ** 02
+           3 | Louis      | M.        | c***@novabank.fr | ** ** ** ** 03
+(3 rows)
+
+[DOIT REUSSIR] support gele un compte
+UPDATE 1
+[DOIT ECHOUER] support ferme un compte (CHECK OPTION)
+ERROR:  new row violates check option for view "v_accounts_support"
+DETAIL:  Failing row contains (2, 2, FR7600000000000000000000002, BUSINESS, 17731.35, CLOSED, 2024-02-01 23:55:20.427779+00).
+[DOIT ECHOUER] support modifie un IBAN
+ERROR:  permission denied for view v_accounts_support
+UPDATE 1
+RESET
+SET
+[DOIT REUSSIR] analyste lit la vue enregistree
+   month    |   tx_type    | nb_operations |    total    | moyenne 
+------------+--------------+---------------+-------------+---------
+ 2026-09-01 | DEPOSIT      |          8404 | 12669214.63 | 1507.52
+ 2026-09-01 | WITHDRAWAL   |          8440 | -3388586.29 | -401.49
+ 2026-09-01 | TRANSFER_OUT |          6794 | -3416513.15 | -502.87
+ 2026-09-01 | TRANSFER_IN  |          6794 |  3416513.15 |  502.87
+(4 rows)
+
+RESET
+
+################ E6 : TRIGGERS ################
+[DOIT REUSSIR] depot, balance_after calcule automatiquement
+  tx_id  | amount | balance_after 
+---------+--------+---------------
+ 1000015 | 100.00 |      47637.32
+(1 row)
+
+INSERT 0 1
+[DOIT ECHOUER] retrait superieur au solde
+ERROR:  Solde insuffisant sur le compte 1 : solde 47637.32, operation -99999999.00
+CONTEXT:  PL/pgSQL function core.fn_tx_apply_balance() line 22 at RAISE
+[DOIT ECHOUER] modifier le grand livre
+ERROR:  Table core.transactions : UPDATE interdit, l historique ne se modifie pas
+CONTEXT:  PL/pgSQL function core.fn_forbid_change() line 3 at RAISE
+[DOIT ECHOUER] supprimer dans le grand livre
+ERROR:  Table core.transactions : DELETE interdit, l historique ne se modifie pas
+CONTEXT:  PL/pgSQL function core.fn_forbid_change() line 3 at RAISE
+[DOIT ECHOUER] vider le grand livre
+NOTICE:  truncate cascades to table "fraud_alerts"
+ERROR:  Table core.transactions : TRUNCATE interdit, l historique ne se modifie pas
+CONTEXT:  PL/pgSQL function core.fn_forbid_change() line 3 at RAISE
+[DOIT ECHOUER] client mineur
+ERROR:  Client mineur refuse : ne le 2016-10-21
+CONTEXT:  PL/pgSQL function core.fn_customer_adult() line 4 at RAISE
+[DOIT REUSSIR] alerte sur un retrait de 5000
+INSERT 0 1
+ account_id |   rule_code    
+------------+----------------
+          1 | BIG_WITHDRAWAL
+(1 row)
+
+[DOIT REUSSIR] changements notes dans le journal d audit
+    table_name     | operation | db_user  
+-------------------+-----------+----------
+ core.fraud_alerts | INSERT    | postgres
+ core.accounts     | UPDATE    | postgres
+ core.accounts     | UPDATE    | postgres
+(3 rows)
+
+
+################ E7 : PROCEDURES ################
+SET
+[DOIT REUSSIR] ouverture de compte
+ p_account_id |           p_iban            
+--------------+-----------------------------
+       100004 | FR7600000000000000000100002
+(1 row)
+
+[DOIT ECHOUER] ouverture pour un client non verifie
+ERROR:  Ouverture refusee : identite du client 3 non verifiee (KYC PENDING)
+CONTEXT:  PL/pgSQL function core.sp_open_account(bigint,core.account_type,numeric,bigint,character varying) line 17 at RAISE
+[DOIT REUSSIR] virement
+ p_transfer_id 
+---------------
+        200010
+(1 row)
+
+[DOIT REUSSIR] releve
+  tx_id  |          created_at           |   tx_type    |  amount  | balance_after |  label  
+---------+-------------------------------+--------------+----------+---------------+---------
+ 1000019 | 2026-10-21 15:05:55.253044+00 | TRANSFER_OUT |  -250.00 |      42387.32 | Test E8
+ 1000017 | 2026-10-21 15:05:55.253044+00 | WITHDRAWAL   | -5000.00 |      42637.32 | 
+ 1000015 | 2026-10-21 15:05:55.253044+00 | DEPOSIT      |   100.00 |      47637.32 | 
+(3 rows)
+
+[DOIT ECHOUER] virement vers le meme compte
+ERROR:  Virement refuse : les deux comptes sont identiques (1)
+CONTEXT:  PL/pgSQL function core.sp_transfer(bigint,bigint,numeric,character varying,bigint) line 20 at RAISE
+[DOIT ECHOUER] virement negatif
+ERROR:  Virement refuse : montant -5 invalide, il doit etre positif
+CONTEXT:  PL/pgSQL function core.sp_transfer(bigint,bigint,numeric,character varying,bigint) line 8 at RAISE
+[DOIT ECHOUER] virement trop gros
+ERROR:  Virement refuse : solde insuffisant (42387.32 disponible, 99999999 demande)
+CONTEXT:  PL/pgSQL function core.sp_transfer(bigint,bigint,numeric,character varying,bigint) line 50 at RAISE
+[DOIT ECHOUER] virement vers un compte gele
+ERROR:  Virement refuse : compte destinataire 17 non actif (FROZEN)
+CONTEXT:  PL/pgSQL function core.sp_transfer(bigint,bigint,numeric,character varying,bigint) line 46 at RAISE
+[DOIT ECHOUER] virement vers un compte inexistant
+ERROR:  Virement refuse : compte destinataire 999999999 inexistant
+CONTEXT:  PL/pgSQL function core.sp_transfer(bigint,bigint,numeric,character varying,bigint) line 38 at RAISE
+[DOIT REUSSIR] 4 virements de plus : alerte 5 virements en 10 minutes
+ p_transfer_id 
+---------------
+        200011
+(1 row)
+
+ p_transfer_id 
+---------------
+        200012
+(1 row)
+
+ p_transfer_id 
+---------------
+        200013
+(1 row)
+
+ p_transfer_id 
+---------------
+        200014
+(1 row)
+
+RESET
+ account_id |   rule_code    
+------------+----------------
+          1 | TRANSFER_BURST
+(1 row)
+
+
+################ COHERENCE APRES TOUS LES TESTS ################
+=== Contrôle 1 : solde du compte = dernier balance_after = somme des écritures
+ account_id | balance | balance_after | total 
+------------+---------+---------------+-------
+(0 rows)
+
+=== Contrôle 2 : chaque virement a exactement 2 écritures qui s annulent
+ transfer_id | nb_ecritures | somme 
+-------------+--------------+-------
+(0 rows)
+
+=== Contrôle 3 : aucun solde négatif, ni sur un compte, ni dans l historique
+ ou | account_id | valeur 
+----+------------+--------
+(0 rows)
+
+ROLLBACK
+
+################ ROLLBACK : la base est revenue a son etat initial ################
